@@ -1712,30 +1712,51 @@ function hideExam() {
 
 function resetExam() { examSeconds = 3000; showExam(); }
 
+/* Traccia le risposte selezionate nell'esame */
+let examAnswers = {};
+
+function selectExamOption(qi, dispIdx, origIdx) {
+  examAnswers[qi] = origIdx;
+  /* Deseleziona tutte le opzioni di questa domanda */
+  var opts = document.querySelectorAll('[data-exam-q="' + qi + '"]');
+  for (var i = 0; i < opts.length; i++) {
+    opts[i].style.borderColor = '#e0e0e0';
+    opts[i].style.background = 'var(--white)';
+  }
+  /* Seleziona quella cliccata */
+  var sel = document.getElementById('exam-opt-' + qi + '-' + dispIdx);
+  sel.style.borderColor = 'var(--primary)';
+  sel.style.background = 'var(--primary-light)';
+}
+
 function renderExamMC() {
-  const container = document.getElementById('exam-mc-questions');
-  let fullHtml = '';
-  EXAM_MC.forEach((q, qi) => {
-    const indices = q.options.map((_, i) => i);
+  var container = document.getElementById('exam-mc-questions');
+  var fullHtml = '';
+  examAnswers = {};
+  for (var qi = 0; qi < EXAM_MC.length; qi++) {
+    var q = EXAM_MC[qi];
+    var indices = q.options.map(function(_, i) { return i; });
     shuffleArray(indices);
     q._shuffled = indices;
-    const letters = ['A','B','C','D','E'];
-    fullHtml += '<div class="exam-question" id="exam-q-' + qi + '"><div class="eq-text"><span class="eq-number">' + (qi+1) + '.</span> ' + q.text + '</div><div class="exam-options">';
-    indices.forEach((origIdx, dispIdx) => {
-      fullHtml += '<div class="exam-option" id="exam-opt-' + qi + '-' + dispIdx + '" onclick="document.getElementById(\'exam-radio-' + qi + '-' + dispIdx + '\').checked=true"><input type="radio" name="exam-q-' + qi + '" id="exam-radio-' + qi + '-' + dispIdx + '" value="' + origIdx + '"><label for="exam-radio-' + qi + '-' + dispIdx + '">' + letters[dispIdx] + '. ' + q.options[origIdx] + '</label></div>';
-    });
+    var letters = ['A','B','C','D','E'];
+    fullHtml += '<div class="exam-question" id="exam-q-' + qi + '"><div class="eq-text"><span class="eq-number">' + (qi+1) + '.</span> ' + q.text + '</div><div class="options-container">';
+    for (var di = 0; di < indices.length; di++) {
+      var origIdx = indices[di];
+      fullHtml += '<button type="button" class="option-btn" id="exam-opt-' + qi + '-' + di + '" data-exam-q="' + qi + '" onclick="selectExamOption(' + qi + ',' + di + ',' + origIdx + ')">' + letters[di] + '. ' + q.options[origIdx] + '</button>';
+    }
     fullHtml += '</div><div class="exam-correction" id="exam-corr-' + qi + '"></div></div>';
-  });
+  }
   container.innerHTML = fullHtml;
 }
 
 function renderExamOpen() {
-  const container = document.getElementById('exam-open-questions');
-  let fullHtml = '';
-  EXAM_OPEN.forEach((q, qi) => {
-    const num = EXAM_MC.length + qi + 1;
+  var container = document.getElementById('exam-open-questions');
+  var fullHtml = '';
+  for (var qi = 0; qi < EXAM_OPEN.length; qi++) {
+    var q = EXAM_OPEN[qi];
+    var num = EXAM_MC.length + qi + 1;
     fullHtml += '<div class="exam-question" id="exam-open-' + qi + '"><div class="eq-text"><span class="eq-number">' + num + '.</span> ' + q.text + '</div><div class="exam-open-area"><textarea id="exam-textarea-' + qi + '" placeholder="Scrivi qui la tua risposta..."></textarea></div><div class="exam-correction" id="exam-open-corr-' + qi + '"></div></div>';
-  });
+  }
   container.innerHTML = fullHtml;
 }
 
@@ -1764,41 +1785,41 @@ function submitExam() {
   examSubmitted = true;
   clearInterval(examTimer);
 
-  let correctMC = 0;
-  EXAM_MC.forEach((q, qi) => {
-    const selected = document.querySelector('input[name="exam-q-' + qi + '"]:checked');
-    const corrDiv = document.getElementById('exam-corr-' + qi);
-    const selectedVal = selected ? parseInt(selected.value) : -1;
-    const isCorrect = selectedVal === q.answer;
+  var correctMC = 0;
+  for (var qi = 0; qi < EXAM_MC.length; qi++) {
+    var q = EXAM_MC[qi];
+    var corrDiv = document.getElementById('exam-corr-' + qi);
+    var selectedVal = (examAnswers[qi] !== undefined) ? examAnswers[qi] : -1;
+    var isCorrect = selectedVal === q.answer;
     if (isCorrect) { correctMC++; corrDiv.className = 'exam-correction show correct-box'; corrDiv.innerHTML = '<strong>Corretta!</strong> ' + q.explanation; }
     else { corrDiv.className = 'exam-correction show wrong-box'; corrDiv.innerHTML = '<strong>Sbagliata.</strong> ' + q.explanation; }
 
-    q._shuffled.forEach((origIdx, dispIdx) => {
-      const optEl = document.getElementById('exam-opt-' + qi + '-' + dispIdx);
-      if (origIdx === q.answer) optEl.classList.add('correct-highlight');
-      if (dispIdx === getDisplayIdx(qi, selectedVal) && !isCorrect) optEl.classList.add('wrong-highlight');
-    });
-    document.querySelectorAll('input[name="exam-q-' + qi + '"]').forEach(r => r.disabled = true);
-  });
+    for (var di = 0; di < q._shuffled.length; di++) {
+      var optEl = document.getElementById('exam-opt-' + qi + '-' + di);
+      optEl.disabled = true;
+      optEl.classList.add('disabled');
+      if (q._shuffled[di] === q.answer) { optEl.classList.add('correct'); }
+      if (q._shuffled[di] === selectedVal && !isCorrect) { optEl.classList.add('wrong'); }
+    }
+  }
 
-  EXAM_OPEN.forEach((q, qi) => {
-    const corrDiv = document.getElementById('exam-open-corr-' + qi);
-    corrDiv.className = 'exam-correction show correct-box';
-    corrDiv.innerHTML = '<strong>Soluzione:</strong><pre style="white-space:pre-wrap;font-family:inherit;margin-top:8px;">' + q.solution + '</pre>';
-  });
+  for (var oi = 0; oi < EXAM_OPEN.length; oi++) {
+    var oq = EXAM_OPEN[oi];
+    var oCorrDiv = document.getElementById('exam-open-corr-' + oi);
+    oCorrDiv.className = 'exam-correction show correct-box';
+    oCorrDiv.innerHTML = '<strong>Soluzione:</strong><pre style="white-space:pre-wrap;font-family:inherit;margin-top:8px;">' + oq.solution + '</pre>';
+  }
 
-  const mcGrade = (correctMC * 0.6 / 6 * 10).toFixed(1);
+  var mcGrade = (correctMC / 10 * 10).toFixed(1);
   document.getElementById('exam-submit-btn').style.display = 'none';
   document.getElementById('exam-result').style.display = 'block';
-  const gradeEl = document.getElementById('exam-grade');
+  var gradeEl = document.getElementById('exam-grade');
   gradeEl.textContent = correctMC + '/10 risposte multiple corrette';
   gradeEl.style.color = correctMC >= 7 ? 'var(--success)' : correctMC >= 5 ? 'var(--warning)' : 'var(--danger)';
   document.getElementById('exam-grade-detail').innerHTML =
     'Parte 1: <strong>' + correctMC + '/10</strong> - Voto stimato: <strong>' + mcGrade + '/10</strong><br>Parte 2: confronta le tue risposte con le soluzioni sopra.';
   document.getElementById('exam-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-
-function getDisplayIdx(qi, origVal) { return EXAM_MC[qi]._shuffled.indexOf(origVal); }
 
 </script>
 </body>
