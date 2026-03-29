@@ -1690,18 +1690,22 @@ let examSeconds = 3000;
 let examSubmitted = false;
 
 function showExam() {
-  document.getElementById('start-screen').style.display = 'none';
-  document.getElementById('quiz-screen').style.display = 'none';
-  document.getElementById('summary-screen').style.display = 'none';
-  document.getElementById('notes-screen').style.display = 'none';
-  document.getElementById('exam-screen').style.display = 'block';
-  examSubmitted = false;
-  document.getElementById('exam-submit-btn').style.display = 'inline-block';
-  document.getElementById('exam-result').style.display = 'none';
-  renderExamMC();
-  renderExamOpen();
-  startExamTimer();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  try {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('quiz-screen').style.display = 'none';
+    document.getElementById('summary-screen').style.display = 'none';
+    document.getElementById('notes-screen').style.display = 'none';
+    document.getElementById('exam-screen').style.display = 'block';
+    examSubmitted = false;
+    document.getElementById('exam-submit-btn').style.display = 'inline-block';
+    document.getElementById('exam-result').style.display = 'none';
+    renderExamMC();
+    renderExamOpen();
+    startExamTimer();
+    window.scrollTo(0, 0);
+  } catch(e) {
+    alert('Errore esame: ' + e.message);
+  }
 }
 
 function hideExam() {
@@ -1713,7 +1717,7 @@ function hideExam() {
 function resetExam() { examSeconds = 3000; showExam(); }
 
 /* Traccia le risposte selezionate nell'esame */
-let examAnswers = {};
+var examAnswers = {};
 
 function selectExamOption(qi, dispIdx, origIdx) {
   examAnswers[qi] = origIdx;
@@ -1764,7 +1768,7 @@ function startExamTimer() {
   examSeconds = 3000;
   clearInterval(examTimer);
   updateTimerDisplay();
-  examTimer = setInterval(() => {
+  examTimer = setInterval(function() {
     examSeconds--;
     updateTimerDisplay();
     if (examSeconds <= 0) { clearInterval(examTimer); if (!examSubmitted) submitExam(); }
@@ -1772,10 +1776,11 @@ function startExamTimer() {
 }
 
 function updateTimerDisplay() {
-  const m = Math.floor(examSeconds / 60);
-  const s = examSeconds % 60;
-  const el = document.getElementById('exam-timer');
-  el.textContent = 'Tempo: ' + m + ':' + s.toString().padStart(2,'0');
+  var m = Math.floor(examSeconds / 60);
+  var s = examSeconds % 60;
+  var sStr = s < 10 ? '0' + s : '' + s;
+  var el = document.getElementById('exam-timer');
+  el.textContent = 'Tempo: ' + m + ':' + sStr;
   el.style.color = examSeconds < 300 ? 'var(--danger)' : 'var(--dark)';
 }
 
