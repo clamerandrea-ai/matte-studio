@@ -277,33 +277,32 @@ button,.btn,.option-btn,.topic-item,.note-title,.exam-option{touch-action:manipu
   </div>
 
   <div id="exam-screen" style="display:none;margin-top:20px;">
-    <div class="exam-card">
-      <div class="exam-header">
-        <h2>VERIFICA DI BIOLOGIA &mdash; ANATOMIA</h2>
-        <div class="exam-info">
-          <span>Nome: _______________&nbsp;&nbsp; Cognome: _______________</span>
-          <span>Classe: ___&nbsp;&nbsp; Data: ___/___/______</span>
-        </div>
-        <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
-          <span class="exam-timer" id="exam-timer">Tempo: 50:00</span>
-          <button class="btn btn-outline" style="padding:6px 14px;font-size:.85em;" onclick="hideExam()">Torna al menu</button>
-        </div>
+    <div class="quiz-header">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+        <div class="progress-info">Verifica: Domanda <span id="exam-current">1</span> di <span id="exam-total">13</span></div>
+        <span class="exam-timer" id="exam-timer" style="font-weight:600;color:var(--danger);">50:00</span>
       </div>
-      <div class="exam-section-title">PARTE 1 &mdash; Domande a risposta multipla (10 domande)</div>
-      <div id="exam-mc-questions"></div>
-      <div class="exam-section-title">PARTE 2 &mdash; Domande aperte (3 domande)</div>
-      <div id="exam-open-questions"></div>
-      <div style="text-align:center;margin-top:24px;">
-        <button class="btn btn-primary" onclick="submitExam()" id="exam-submit-btn" style="padding:14px 40px;font-size:1.05em;">Consegna Verifica</button>
+      <div class="progress-bar-container"><div class="progress-bar-fill" id="exam-progress-bar" style="width:0%"></div></div>
+      <div style="width:100%;text-align:right;margin-top:4px;">
+        <button class="btn btn-outline" style="padding:6px 14px;font-size:.85em;" onclick="hideExam()">Abbandona</button>
       </div>
-      <div class="exam-result-bar" id="exam-result" style="display:none;">
-        <p style="font-size:1.1em;margin-bottom:8px;">Risultato della verifica:</p>
-        <div class="exam-grade" id="exam-grade"></div>
-        <p id="exam-grade-detail" style="color:var(--gray);margin-top:6px;"></p>
-        <div style="margin-top:16px;">
-          <button class="btn btn-primary" onclick="resetExam()">Ripeti la verifica</button>
-          <button class="btn btn-outline" style="margin-left:8px;" onclick="hideExam()">Torna al menu</button>
-        </div>
+    </div>
+    <div class="question-card" id="exam-question-card">
+      <div class="question-meta" id="exam-question-meta"></div>
+      <div class="question-text" id="exam-question-text"></div>
+      <div id="exam-answer-area"></div>
+    </div>
+    <div class="next-btn-container" id="exam-next-container" style="display:none;">
+      <button class="btn btn-primary" onclick="nextExamQuestion()">Prossima domanda</button>
+    </div>
+    <div class="summary-card" id="exam-result" style="display:none;">
+      <h2>Risultato della Verifica</h2>
+      <div class="big-score" id="exam-grade"></div>
+      <p style="text-align:center;color:var(--gray);" id="exam-grade-detail"></p>
+      <div id="exam-review"></div>
+      <div style="text-align:center;margin-top:20px;">
+        <button class="btn btn-primary" onclick="resetExam()">Ripeti la verifica</button>
+        <button class="btn btn-outline" style="margin-left:8px;" onclick="hideExam()">Torna al menu</button>
       </div>
     </div>
   </div>
@@ -1683,29 +1682,48 @@ function toggleNote(id) {
 }
 
 /* ============================================
-   SIMULAZIONE VERIFICA
+   SIMULAZIONE VERIFICA - UNA DOMANDA ALLA VOLTA
    ============================================ */
-let examTimer = null;
-let examSeconds = 3000;
-let examSubmitted = false;
+var examTimer = null;
+var examSeconds = 3000;
+var examIndex = 0;
+var examCorrect = 0;
+var examTotal = 0;
+var examAllQuestions = [];
+var examHistory = [];
+var examAnswered = false;
 
 function showExam() {
-  try {
-    document.getElementById('start-screen').style.display = 'none';
-    document.getElementById('quiz-screen').style.display = 'none';
-    document.getElementById('summary-screen').style.display = 'none';
-    document.getElementById('notes-screen').style.display = 'none';
-    document.getElementById('exam-screen').style.display = 'block';
-    examSubmitted = false;
-    document.getElementById('exam-submit-btn').style.display = 'inline-block';
-    document.getElementById('exam-result').style.display = 'none';
-    renderExamMC();
-    renderExamOpen();
-    startExamTimer();
-    window.scrollTo(0, 0);
-  } catch(e) {
-    alert('Errore esame: ' + e.message);
+  examIndex = 0;
+  examCorrect = 0;
+  examHistory = [];
+  examAnswered = false;
+  examSeconds = 3000;
+
+  /* Costruisci la lista domande esame: 10 MC + 3 aperte */
+  examAllQuestions = [];
+  for (var i = 0; i < EXAM_MC.length; i++) {
+    var q = EXAM_MC[i];
+    var indices = q.options.map(function(_, j) { return j; });
+    shuffleArray(indices);
+    examAllQuestions.push({ text: q.text, options: q.options, answer: q.answer, explanation: q.explanation, type: 'mc', _shuffled: indices });
   }
+  for (var i = 0; i < EXAM_OPEN.length; i++) {
+    examAllQuestions.push({ text: EXAM_OPEN[i].text, solution: EXAM_OPEN[i].solution, type: 'open' });
+  }
+  examTotal = examAllQuestions.length;
+
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('quiz-screen').style.display = 'none';
+  document.getElementById('summary-screen').style.display = 'none';
+  document.getElementById('notes-screen').style.display = 'none';
+  document.getElementById('exam-screen').style.display = 'block';
+  document.getElementById('exam-result').style.display = 'none';
+  document.getElementById('exam-total').textContent = examTotal;
+
+  showExamQuestion();
+  startExamTimer();
+  window.scrollTo(0, 0);
 }
 
 function hideExam() {
@@ -1714,54 +1732,147 @@ function hideExam() {
   document.getElementById('start-screen').style.display = 'block';
 }
 
-function resetExam() { examSeconds = 3000; showExam(); }
+function resetExam() { showExam(); }
 
-/* Traccia le risposte selezionate nell'esame */
-var examAnswers = {};
+function showExamQuestion() {
+  examAnswered = false;
+  var q = examAllQuestions[examIndex];
+  document.getElementById('exam-current').textContent = examIndex + 1;
+  var pct = (examIndex / examTotal) * 100;
+  document.getElementById('exam-progress-bar').style.width = pct + '%';
+  document.getElementById('exam-next-container').style.display = 'none';
+  document.getElementById('exam-question-card').style.display = 'block';
 
-function selectExamOption(qi, dispIdx, origIdx) {
-  examAnswers[qi] = origIdx;
-  /* Deseleziona tutte le opzioni di questa domanda */
-  var opts = document.querySelectorAll('[data-exam-q="' + qi + '"]');
-  for (var i = 0; i < opts.length; i++) {
-    opts[i].style.borderColor = '#e0e0e0';
-    opts[i].style.background = 'var(--white)';
+  var meta = document.getElementById('exam-question-meta');
+  if (examIndex === 0) {
+    var warning = document.createElement('div');
+    warning.style.cssText = 'background:linear-gradient(135deg,#1d3557,#457b9d);color:white;padding:18px 24px;border-radius:12px;text-align:center;margin-bottom:16px;font-size:1.1em;font-weight:700;letter-spacing:1px;';
+    warning.innerHTML = 'ATTENZIONE — ESAME<br><span style="font-size:0.8em;font-weight:400;opacity:0.9;">Rispondi con attenzione. Hai 50 minuti di tempo.</span>';
+    document.getElementById('exam-answer-area').before(warning);
   }
-  /* Seleziona quella cliccata */
-  var sel = document.getElementById('exam-opt-' + qi + '-' + dispIdx);
-  sel.style.borderColor = 'var(--primary)';
-  sel.style.background = 'var(--primary-light)';
-}
 
-function renderExamMC() {
-  var container = document.getElementById('exam-mc-questions');
-  var fullHtml = '';
-  examAnswers = {};
-  for (var qi = 0; qi < EXAM_MC.length; qi++) {
-    var q = EXAM_MC[qi];
-    var indices = q.options.map(function(_, i) { return i; });
-    shuffleArray(indices);
-    q._shuffled = indices;
+  if (q.type === 'mc') {
+    meta.innerHTML = '<span class="badge badge-topic">Verifica</span><span class="badge badge-type">Domanda ' + (examIndex + 1) + '/' + examTotal + '</span>';
+  } else {
+    meta.innerHTML = '<span class="badge badge-topic">Verifica</span><span class="badge badge-diff-3">Domanda aperta</span>';
+  }
+
+  document.getElementById('exam-question-text').textContent = q.text;
+
+  var area = document.getElementById('exam-answer-area');
+  area.innerHTML = '';
+
+  if (q.type === 'mc') {
+    var container = document.createElement('div');
+    container.className = 'options-container';
     var letters = ['A','B','C','D','E'];
-    fullHtml += '<div class="exam-question" id="exam-q-' + qi + '"><div class="eq-text"><span class="eq-number">' + (qi+1) + '.</span> ' + q.text + '</div><div class="options-container">';
-    for (var di = 0; di < indices.length; di++) {
-      var origIdx = indices[di];
-      fullHtml += '<button type="button" class="option-btn" id="exam-opt-' + qi + '-' + di + '" data-exam-q="' + qi + '" onclick="selectExamOption(' + qi + ',' + di + ',' + origIdx + ')">' + letters[di] + '. ' + q.options[origIdx] + '</button>';
+    for (var di = 0; di < q._shuffled.length; di++) {
+      var origIdx = q._shuffled[di];
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'option-btn';
+      btn.textContent = letters[di] + '. ' + q.options[origIdx];
+      btn.dataset.origIdx = origIdx;
+      btn.dataset.dispIdx = di;
+      btn.onclick = (function(oIdx, dIdx) { return function() { handleExamMC(oIdx, dIdx); }; })(origIdx, di);
+      container.appendChild(btn);
     }
-    fullHtml += '</div><div class="exam-correction" id="exam-corr-' + qi + '"></div></div>';
+    area.appendChild(container);
+  } else {
+    var ta = document.createElement('textarea');
+    ta.style.cssText = 'width:100%;min-height:150px;padding:14px;border:2px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:1em;resize:vertical;';
+    ta.placeholder = 'Scrivi qui la tua risposta...';
+    ta.id = 'exam-open-textarea';
+    area.appendChild(ta);
+    var showBtn = document.createElement('button');
+    showBtn.type = 'button';
+    showBtn.className = 'btn btn-primary';
+    showBtn.style.marginTop = '12px';
+    showBtn.textContent = 'Mostra soluzione';
+    showBtn.onclick = function() { handleExamOpen(); };
+    area.appendChild(showBtn);
   }
-  container.innerHTML = fullHtml;
 }
 
-function renderExamOpen() {
-  var container = document.getElementById('exam-open-questions');
-  var fullHtml = '';
-  for (var qi = 0; qi < EXAM_OPEN.length; qi++) {
-    var q = EXAM_OPEN[qi];
-    var num = EXAM_MC.length + qi + 1;
-    fullHtml += '<div class="exam-question" id="exam-open-' + qi + '"><div class="eq-text"><span class="eq-number">' + num + '.</span> ' + q.text + '</div><div class="exam-open-area"><textarea id="exam-textarea-' + qi + '" placeholder="Scrivi qui la tua risposta..."></textarea></div><div class="exam-correction" id="exam-open-corr-' + qi + '"></div></div>';
+function handleExamMC(origIdx, dispIdx) {
+  if (examAnswered) return;
+  examAnswered = true;
+  var q = examAllQuestions[examIndex];
+  var isCorrect = origIdx === q.answer;
+  if (isCorrect) examCorrect++;
+  examHistory.push({ text: q.text, correct: isCorrect, type: 'mc' });
+
+  var btns = document.querySelectorAll('#exam-answer-area .option-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.add('disabled');
+    var oi = parseInt(btns[i].dataset.origIdx);
+    if (oi === q.answer) btns[i].classList.add('correct');
+    if (parseInt(btns[i].dataset.dispIdx) === dispIdx && !isCorrect) btns[i].classList.add('wrong');
   }
-  container.innerHTML = fullHtml;
+
+  /* Mostra spiegazione */
+  var fb = document.createElement('div');
+  fb.style.cssText = 'margin-top:14px;padding:14px 18px;border-radius:10px;line-height:1.6;';
+  if (isCorrect) {
+    fb.style.background = 'var(--success-light)';
+    fb.style.borderLeft = '4px solid var(--success)';
+    fb.innerHTML = '<strong style="color:var(--success)">Corretta!</strong> ' + q.explanation;
+  } else {
+    fb.style.background = 'var(--danger-light)';
+    fb.style.borderLeft = '4px solid var(--danger)';
+    fb.innerHTML = '<strong style="color:var(--danger)">Sbagliata.</strong> ' + q.explanation;
+  }
+  document.getElementById('exam-answer-area').appendChild(fb);
+  document.getElementById('exam-next-container').style.display = 'block';
+}
+
+function handleExamOpen() {
+  if (examAnswered) return;
+  examAnswered = true;
+  var q = examAllQuestions[examIndex];
+  examHistory.push({ text: q.text, correct: null, type: 'open' });
+
+  var fb = document.createElement('div');
+  fb.style.cssText = 'margin-top:14px;padding:14px 18px;border-radius:10px;line-height:1.6;background:var(--success-light);border-left:4px solid var(--success);';
+  fb.innerHTML = '<strong>Soluzione:</strong><pre style="white-space:pre-wrap;font-family:inherit;margin-top:8px;">' + q.solution + '</pre>';
+  document.getElementById('exam-answer-area').appendChild(fb);
+  document.getElementById('exam-next-container').style.display = 'block';
+}
+
+function nextExamQuestion() {
+  examIndex++;
+  if (examIndex >= examTotal) {
+    endExam();
+  } else {
+    showExamQuestion();
+    document.getElementById('exam-question-card').scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+function endExam() {
+  clearInterval(examTimer);
+  document.getElementById('exam-question-card').style.display = 'none';
+  document.getElementById('exam-next-container').style.display = 'none';
+  document.getElementById('exam-result').style.display = 'block';
+  document.getElementById('exam-progress-bar').style.width = '100%';
+
+  var mcTotal = EXAM_MC.length;
+  var grade = (examCorrect / mcTotal * 10).toFixed(1);
+  var gradeEl = document.getElementById('exam-grade');
+  gradeEl.textContent = grade + '/10';
+  gradeEl.className = 'big-score ' + (examCorrect >= 7 ? 'good' : examCorrect >= 5 ? 'medium' : 'bad');
+  document.getElementById('exam-grade-detail').innerHTML =
+    examCorrect + '/' + mcTotal + ' risposte multiple corrette<br>Le domande aperte vanno confrontate con le soluzioni mostrate.';
+
+  /* Cronologia esame */
+  var reviewHtml = '<h3 style="margin:20px 0 10px;">Riepilogo risposte</h3>';
+  for (var i = 0; i < examHistory.length; i++) {
+    var h = examHistory[i];
+    var mark = h.type === 'open' ? '<span style="color:var(--gray)">Aperta</span>' : (h.correct ? '<span class="correct-mark">Corretta</span>' : '<span class="wrong-mark">Errata</span>');
+    reviewHtml += '<div class="history-item"><span>' + (i+1) + '. ' + h.text.substring(0,50) + (h.text.length > 50 ? '...' : '') + '</span>' + mark + '</div>';
+  }
+  document.getElementById('exam-review').innerHTML = reviewHtml;
+  document.getElementById('exam-result').scrollIntoView({ behavior: 'smooth' });
 }
 
 function startExamTimer() {
@@ -1771,7 +1882,7 @@ function startExamTimer() {
   examTimer = setInterval(function() {
     examSeconds--;
     updateTimerDisplay();
-    if (examSeconds <= 0) { clearInterval(examTimer); if (!examSubmitted) submitExam(); }
+    if (examSeconds <= 0) { clearInterval(examTimer); endExam(); }
   }, 1000);
 }
 
@@ -1780,50 +1891,8 @@ function updateTimerDisplay() {
   var s = examSeconds % 60;
   var sStr = s < 10 ? '0' + s : '' + s;
   var el = document.getElementById('exam-timer');
-  el.textContent = 'Tempo: ' + m + ':' + sStr;
+  el.textContent = m + ':' + sStr;
   el.style.color = examSeconds < 300 ? 'var(--danger)' : 'var(--dark)';
-}
-
-function submitExam() {
-  if (examSubmitted) return;
-  if (!confirm('Sei sicuro di voler consegnare la verifica?')) return;
-  examSubmitted = true;
-  clearInterval(examTimer);
-
-  var correctMC = 0;
-  for (var qi = 0; qi < EXAM_MC.length; qi++) {
-    var q = EXAM_MC[qi];
-    var corrDiv = document.getElementById('exam-corr-' + qi);
-    var selectedVal = (examAnswers[qi] !== undefined) ? examAnswers[qi] : -1;
-    var isCorrect = selectedVal === q.answer;
-    if (isCorrect) { correctMC++; corrDiv.className = 'exam-correction show correct-box'; corrDiv.innerHTML = '<strong>Corretta!</strong> ' + q.explanation; }
-    else { corrDiv.className = 'exam-correction show wrong-box'; corrDiv.innerHTML = '<strong>Sbagliata.</strong> ' + q.explanation; }
-
-    for (var di = 0; di < q._shuffled.length; di++) {
-      var optEl = document.getElementById('exam-opt-' + qi + '-' + di);
-      optEl.disabled = true;
-      optEl.classList.add('disabled');
-      if (q._shuffled[di] === q.answer) { optEl.classList.add('correct'); }
-      if (q._shuffled[di] === selectedVal && !isCorrect) { optEl.classList.add('wrong'); }
-    }
-  }
-
-  for (var oi = 0; oi < EXAM_OPEN.length; oi++) {
-    var oq = EXAM_OPEN[oi];
-    var oCorrDiv = document.getElementById('exam-open-corr-' + oi);
-    oCorrDiv.className = 'exam-correction show correct-box';
-    oCorrDiv.innerHTML = '<strong>Soluzione:</strong><pre style="white-space:pre-wrap;font-family:inherit;margin-top:8px;">' + oq.solution + '</pre>';
-  }
-
-  var mcGrade = (correctMC / 10 * 10).toFixed(1);
-  document.getElementById('exam-submit-btn').style.display = 'none';
-  document.getElementById('exam-result').style.display = 'block';
-  var gradeEl = document.getElementById('exam-grade');
-  gradeEl.textContent = correctMC + '/10 risposte multiple corrette';
-  gradeEl.style.color = correctMC >= 7 ? 'var(--success)' : correctMC >= 5 ? 'var(--warning)' : 'var(--danger)';
-  document.getElementById('exam-grade-detail').innerHTML =
-    'Parte 1: <strong>' + correctMC + '/10</strong> - Voto stimato: <strong>' + mcGrade + '/10</strong><br>Parte 2: confronta le tue risposte con le soluzioni sopra.';
-  document.getElementById('exam-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 </script>
